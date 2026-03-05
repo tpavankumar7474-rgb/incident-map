@@ -1,233 +1,476 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+ 
 <meta charset="utf-8"/>
 <title>Incident GIS Map</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-
+ 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
-
+ 
 <style>
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* important to prevent scrollbars */
-}
+ 
+*{
 
-#map {
-  height: 100%;
-  width: 100%;
-  box-sizing: border-box;
-}
+box-sizing:border-box;
 
-.leaflet-tooltip {
-  font-size: 13px;
 }
+ 
+html,body{
 
-/* Legend styling */
-.legend {
-  background: white;
-  padding: 10px;
-  border-radius: 6px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.3);
-  font-size: 13px;
-  line-height: 18px;
-  z-index: 1000; /* ensure it's above map layers */
-}
+height:100%;
 
-.legend i {
-  width: 14px;
-  height: 14px;
-  float: left;
-  margin-right: 6px;
-  opacity: 0.8;
-}
+width:100%;
 
-/* Ensure Leaflet controls like zoom and layers show on top */
-.leaflet-control {
-  z-index: 1000 !important;
+margin:0;
+
+padding:0;
+
+font-family:Arial, sans-serif;
+
 }
+ 
+/* responsive container */
+
+.map-wrapper{
+
+width:100%;
+
+height:100vh;
+
+display:flex;
+
+flex-direction:column;
+
+}
+ 
+/* responsive map */
+
+#map{
+
+flex:1;
+
+width:100%;
+
+height:100%;
+
+min-height:300px;
+
+}
+ 
+/* tooltip */
+
+.leaflet-tooltip{
+
+font-size:13px;
+
+}
+ 
+/* prevent cropping of controls */
+
+.leaflet-control-container{
+
+overflow:visible !important;
+
+}
+ 
+.leaflet-top,
+
+.leaflet-bottom{
+
+z-index:1000 !important;
+
+}
+ 
+.leaflet-top.leaflet-right{
+
+margin:10px;
+
+}
+ 
+/* legend */
+ 
+.legend{
+
+background:white;
+
+padding:10px;
+
+border-radius:6px;
+
+box-shadow:0 0 10px rgba(0,0,0,0.3);
+
+font-size:13px;
+
+}
+ 
+.legend i{
+
+width:14px;
+
+height:14px;
+
+float:left;
+
+margin-right:6px;
+
+opacity:0.8;
+
+}
+ 
 </style>
+ 
 </head>
-
+ 
 <body>
+ 
+<div class="map-wrapper">
 <div id="map"></div>
-
+</div>
+ 
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-
+ 
 <script>
+ 
 /////////////////////////////////////////////////////
+
 // MAP INIT
-/////////////////////////////////////////////////////
-const map = L.map("map").setView([26.25,50.05],10);
 
+/////////////////////////////////////////////////////
+ 
+const map = L.map("map",{
+
+zoomControl:true
+
+}).setView([26.25,50.05],10);
+ 
 L.tileLayer(
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  { maxZoom: 18, attribution: "© OpenStreetMap" }
+
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+
+{
+
+maxZoom:18,
+
+attribution:"© OpenStreetMap"
+
+}
+
 ).addTo(map);
+ 
+/////////////////////////////////////////////////////
+
+// RESPONSIVE MAP FIX
 
 /////////////////////////////////////////////////////
-// AUTO-FIT MAP SIZE
-/////////////////////////////////////////////////////
-function fixMapSize() {
-  window.requestAnimationFrame(() => {
-    if (map && typeof map.invalidateSize === "function") {
-      map.invalidateSize();
-    }
-  });
+ 
+function resizeMap(){
+
+setTimeout(()=>{
+
+map.invalidateSize();
+
+},200);
+
 }
+ 
+window.addEventListener("load",resizeMap);
 
-// On page load & window resize
-window.addEventListener("load", fixMapSize);
-window.addEventListener("resize", fixMapSize);
+window.addEventListener("resize",resizeMap);
+ 
+new ResizeObserver(() => {
 
-// ResizeObserver for dynamic container resizing (Grafana panels)
-if (window.ResizeObserver) {
-  const observer = new ResizeObserver(() => map.invalidateSize());
-  observer.observe(document.getElementById("map"));
+map.invalidateSize();
+
+}).observe(document.getElementById("map"));
+ 
+/////////////////////////////////////////////////////
+
+// MUNICIPALITY COLORS
+
+/////////////////////////////////////////////////////
+ 
+function getColor(name){
+ 
+if(name==="الخبر") return "#FFD700";
+
+if(name==="الدمام") return "#FF6B6B";
+
+if(name==="الظهران") return "#90EE90";
+ 
+return "#cccccc";
+ 
 }
+ 
+/////////////////////////////////////////////////////
 
-/////////////////////////////////////////////////////
-// FIXED MUNICIPALITY COLORS
-/////////////////////////////////////////////////////
-function getColor(name) {
-  if (name==="الخبر") return "#FFD700";
-  if (name==="الدمام") return "#FF6B6B";
-  if (name==="الظهران") return "#90EE90";
-  return "#cccccc";
-}
-
-/////////////////////////////////////////////////////
 // MUNICIPALITY LAYER
-/////////////////////////////////////////////////////
-const municipalityLayer = L.geoJSON(null, {
-  style: function(feature) {
-    const name = feature.properties.municipality_name;
-    return { color: getColor(name), weight: 4, fillOpacity: 0.35 };
-  },
-  onEachFeature: function(feature, layer) {
-    const name = feature.properties.municipality_name;
-    layer.bindTooltip("<b>Municipality</b><br>"+name);
-    layer.on("click", function() { map.fitBounds(layer.getBounds()); });
-  }
-});
 
 /////////////////////////////////////////////////////
+ 
+const municipalityLayer=L.geoJSON(null,{
+ 
+style:function(feature){
+ 
+const name=feature.properties.municipality_name;
+ 
+return{
+
+color:getColor(name),
+
+weight:4,
+
+fillOpacity:0.35
+
+}
+ 
+},
+ 
+onEachFeature:function(feature,layer){
+ 
+const name=feature.properties.municipality_name;
+ 
+layer.bindTooltip("<b>Municipality</b><br>"+name);
+ 
+layer.on("click",function(){
+
+map.fitBounds(layer.getBounds());
+
+});
+ 
+}
+ 
+});
+ 
+/////////////////////////////////////////////////////
+
 // DISTRICT LAYER
-/////////////////////////////////////////////////////
-const districtLayer = L.geoJSON(null, {
-  style: { color: "#2c3e50", weight: 1.5, fillOpacity: 0 },
-  onEachFeature: function(feature, layer) {
-    layer.bindTooltip("<b>District</b><br>"+feature.properties.Name);
-  }
-});
 
 /////////////////////////////////////////////////////
+ 
+const districtLayer=L.geoJSON(null,{
+ 
+style:{
+
+color:"#2c3e50",
+
+weight:1.5,
+
+fillOpacity:0
+
+},
+ 
+onEachFeature:function(feature,layer){
+
+layer.bindTooltip("<b>District</b><br>"+feature.properties.Name);
+
+}
+ 
+});
+ 
+/////////////////////////////////////////////////////
+
 // INCIDENT CLUSTER
-/////////////////////////////////////////////////////
-const clusterGroup = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 50 });
 
 /////////////////////////////////////////////////////
-// ADD LAYERS
-/////////////////////////////////////////////////////
-municipalityLayer.addTo(map);
-districtLayer.addTo(map);
-clusterGroup.addTo(map);
+ 
+const clusterGroup=L.markerClusterGroup({
 
-/////////////////////////////////////////////////////
-// LOAD MUNICIPALITY JSON
-/////////////////////////////////////////////////////
-fetch("municipalities.json")
-.then(r => r.json())
-.then(data => {
-  municipalityLayer.addData(data);
-  map.fitBounds(municipalityLayer.getBounds());
-  fixMapSize();
+chunkedLoading:true,
+
+maxClusterRadius:50
+
 });
+ 
+/////////////////////////////////////////////////////
+
+// ADD LAYERS
 
 /////////////////////////////////////////////////////
+ 
+municipalityLayer.addTo(map);
+
+districtLayer.addTo(map);
+
+clusterGroup.addTo(map);
+ 
+/////////////////////////////////////////////////////
+
+// LOAD MUNICIPALITY JSON
+
+/////////////////////////////////////////////////////
+ 
+fetch("municipalities.json")
+
+.then(r=>r.json())
+
+.then(data=>{
+ 
+municipalityLayer.addData(data);
+ 
+map.fitBounds(municipalityLayer.getBounds());
+ 
+resizeMap();
+ 
+});
+ 
+/////////////////////////////////////////////////////
+
 // LOAD DISTRICT JSON
-/////////////////////////////////////////////////////
-fetch("districts.json")
-.then(r => r.json())
-.then(data => { districtLayer.addData(data); });
 
 /////////////////////////////////////////////////////
-// INCIDENT TOOLTIP
+ 
+fetch("districts.json")
+
+.then(r=>r.json())
+
+.then(data=>{
+
+districtLayer.addData(data);
+
+});
+ 
 /////////////////////////////////////////////////////
-function buildTooltip(d) {
-  return `
+
+// INCIDENT TOOLTIP
+
+/////////////////////////////////////////////////////
+ 
+function buildTooltip(d){
+ 
+return `
 <b>Location:</b> ${d.state ?? "N/A"}<br>
 <b>Ticket:</b> ${d.ticket ?? "N/A"}<br>
 <b>Classification:</b> ${d.classification ?? "N/A"}<br>
 <b>Status:</b> ${d.status ?? "N/A"}<br>
 <b>Count:</b> ${d.count ?? 0}
+
 `;
+ 
 }
-
+ 
 /////////////////////////////////////////////////////
+
 // RENDER INCIDENT DATA
+
 /////////////////////////////////////////////////////
-function renderData(rows) {
-  clusterGroup.clearLayers();
-  rows.forEach(r => {
-    if(!r.lat || !r.long) return;
-    const marker = L.marker([r.lat,r.long]);
-    marker.bindTooltip(buildTooltip(r));
-    clusterGroup.addLayer(marker);
-  });
-  fixMapSize();
+ 
+function renderData(rows){
+ 
+clusterGroup.clearLayers();
+ 
+rows.forEach(r=>{
+ 
+if(!r.lat || !r.long) return;
+ 
+const marker=L.marker([r.lat,r.long]);
+ 
+marker.bindTooltip(buildTooltip(r));
+ 
+clusterGroup.addLayer(marker);
+ 
+});
+ 
+resizeMap();
+ 
+}
+ 
+/////////////////////////////////////////////////////
+
+// RECEIVE GRAFANA DATA
+
+/////////////////////////////////////////////////////
+ 
+window.addEventListener("message",(event)=>{
+ 
+if(
+
+event.data?.type==="incidentData" &&
+
+Array.isArray(event.data.data)
+
+){
+ 
+renderData(event.data.data);
+ 
+}
+ 
+});
+ 
+/////////////////////////////////////////////////////
+
+// LAYER CONTROL
+
+/////////////////////////////////////////////////////
+ 
+L.control.layers(
+
+{},
+
+{
+
+"Municipalities":municipalityLayer,
+
+"Districts":districtLayer,
+
+"Incidents":clusterGroup
+
+},
+
+{
+
+position:"topright",
+
+collapsed:true
+
 }
 
-/////////////////////////////////////////////////////
-// RECEIVE GRAFANA DATA
-/////////////////////////////////////////////////////
-window.addEventListener("message", (event) => {
-  if(event.data?.type === "incidentData" && Array.isArray(event.data.data)){
-    renderData(event.data.data);
-  }
-});
-
-/////////////////////////////////////////////////////
-// LAYER CONTROL
-/////////////////////////////////////////////////////
-L.control.layers(
-  {},
-  {
-    "Municipalities": municipalityLayer,
-    "Districts": districtLayer,
-    "Incidents": clusterGroup
-  },
-  { position: "topright" }
 ).addTo(map);
-
+ 
 /////////////////////////////////////////////////////
+
 // LEGEND
-/////////////////////////////////////////////////////
-const legend = L.control({ position: "bottomleft" });
 
-legend.onAdd = function() {
-  const div = L.DomUtil.create("div", "legend");
-  div.innerHTML = `
+/////////////////////////////////////////////////////
+ 
+const legend=L.control({position:"bottomleft"});
+ 
+legend.onAdd=function(){
+ 
+const div=L.DomUtil.create("div","legend");
+ 
+div.innerHTML=`
 <b>Municipalities</b><br><br>
+ 
 <i style="background:#FFD700"></i> Khobar<br>
 <i style="background:#FF6B6B"></i> Dammam<br>
 <i style="background:#90EE90"></i> Dhahran
-  `;
-  return div;
+
+`;
+ 
+return div;
+ 
 };
-
+ 
 legend.addTo(map);
+ 
+/////////////////////////////////////////////////////
+
+// FINAL GRAFANA FIX
 
 /////////////////////////////////////////////////////
-// FINAL FIX FOR GRAFANA
-/////////////////////////////////////////////////////
-setTimeout(fixMapSize, 1000);
+ 
+setTimeout(()=>{
 
+map.invalidateSize();
+
+},1000);
+ 
 </script>
+ 
 </body>
 </html>
+ 
