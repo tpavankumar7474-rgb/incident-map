@@ -1,0 +1,254 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="utf-8"/>
+<title>Incident GIS Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+
+<style>
+
+html,body,#map{
+height:100%;
+margin:0;
+padding:0;
+}
+
+.leaflet-tooltip{
+font-size:13px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+<script>
+
+/////////////////////////////////////////////////////
+// MAP INIT
+/////////////////////////////////////////////////////
+
+const map = L.map("map").setView([26.25,50.05],10);
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+maxZoom:18,
+attribution:"© OpenStreetMap"
+}
+).addTo(map);
+
+/////////////////////////////////////////////////////
+// COLOR FUNCTION
+/////////////////////////////////////////////////////
+
+function getColor(name){
+
+const colors=[
+"#ff6b6b",
+"#4ecdc4",
+"#ffe66d",
+"#1a535c",
+"#ff9f1c",
+"#2ec4b6",
+"#e71d36"
+];
+
+let hash=0;
+
+for(let i=0;i<name.length;i++){
+hash=name.charCodeAt(i)+((hash<<5)-hash);
+}
+
+return colors[Math.abs(hash)%colors.length];
+
+}
+
+/////////////////////////////////////////////////////
+// MUNICIPALITY LAYER
+/////////////////////////////////////////////////////
+
+const municipalityLayer=L.geoJSON(null,{
+
+style:function(feature){
+
+const name=feature.properties.municipality_name;
+
+return{
+color:getColor(name),
+weight:3,
+fillOpacity:0.25
+}
+
+},
+
+onEachFeature:function(feature,layer){
+
+const name=feature.properties.municipality_name;
+
+layer.bindTooltip(
+"<b>Municipality</b><br>"+name
+);
+
+layer.on("click",function(){
+
+map.fitBounds(layer.getBounds());
+
+});
+
+}
+
+});
+
+/////////////////////////////////////////////////////
+// DISTRICT LAYER
+/////////////////////////////////////////////////////
+
+const districtLayer=L.geoJSON(null,{
+
+style:{
+color:"#2c3e50",
+weight:1,
+fillOpacity:0
+},
+
+onEachFeature:function(feature,layer){
+
+layer.bindTooltip(
+"<b>District</b><br>"+feature.properties.Name
+);
+
+}
+
+});
+
+/////////////////////////////////////////////////////
+// INCIDENT CLUSTER
+/////////////////////////////////////////////////////
+
+const clusterGroup=L.markerClusterGroup({
+
+chunkedLoading:true,
+maxClusterRadius:50
+
+});
+
+/////////////////////////////////////////////////////
+// ADD LAYERS
+/////////////////////////////////////////////////////
+
+municipalityLayer.addTo(map);
+districtLayer.addTo(map);
+clusterGroup.addTo(map);
+
+/////////////////////////////////////////////////////
+// LOAD MUNICIPALITY JSON
+/////////////////////////////////////////////////////
+
+fetch("municipalities.json")
+.then(r=>r.json())
+.then(data=>{
+
+municipalityLayer.addData(data);
+
+map.fitBounds(municipalityLayer.getBounds());
+
+});
+
+/////////////////////////////////////////////////////
+// LOAD DISTRICT JSON
+/////////////////////////////////////////////////////
+
+fetch("districts.json")
+.then(r=>r.json())
+.then(data=>{
+
+districtLayer.addData(data);
+
+});
+
+/////////////////////////////////////////////////////
+// INCIDENT TOOLTIP
+/////////////////////////////////////////////////////
+
+function buildTooltip(d){
+
+return `
+<b>Location:</b> ${d.state ?? "N/A"}<br>
+<b>Ticket:</b> ${d.ticket ?? "N/A"}<br>
+<b>Classification:</b> ${d.classification ?? "N/A"}<br>
+<b>Status:</b> ${d.status ?? "N/A"}<br>
+<b>Count:</b> ${d.count ?? 0}
+`;
+
+}
+
+/////////////////////////////////////////////////////
+// RENDER INCIDENT DATA
+/////////////////////////////////////////////////////
+
+function renderData(rows){
+
+clusterGroup.clearLayers();
+
+rows.forEach(r=>{
+
+if(!r.lat || !r.long) return;
+
+const marker=L.marker([r.lat,r.long]);
+
+marker.bindTooltip(buildTooltip(r));
+
+clusterGroup.addLayer(marker);
+
+});
+
+}
+
+/////////////////////////////////////////////////////
+// RECEIVE GRAFANA DATA
+/////////////////////////////////////////////////////
+
+window.addEventListener("message",(event)=>{
+
+if(
+event.data?.type==="incidentData" &&
+Array.isArray(event.data.data)
+){
+
+renderData(event.data.data);
+
+}
+
+});
+
+/////////////////////////////////////////////////////
+// LAYER CONTROL
+/////////////////////////////////////////////////////
+
+L.control.layers(
+{},
+{
+"Municipalities":municipalityLayer,
+"Districts":districtLayer,
+"Incidents":clusterGroup
+}
+).addTo(map);
+
+</script>
+
+</body>
+</html>
+```
