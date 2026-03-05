@@ -12,10 +12,15 @@
 
 <style>
 
-html,body,#map{
+html,body{
 height:100%;
 margin:0;
 padding:0;
+}
+
+#map{
+height:100%;
+width:100%;
 }
 
 .leaflet-tooltip{
@@ -68,22 +73,27 @@ attribution:"© OpenStreetMap"
 ).addTo(map);
 
 /////////////////////////////////////////////////////
+// FIX MAP SIZE (GRAFANA IFRAME FIX)
+/////////////////////////////////////////////////////
+
+function fixMapSize(){
+setTimeout(()=>{
+map.invalidateSize();
+},500);
+}
+
+window.addEventListener("load",fixMapSize);
+window.addEventListener("resize",fixMapSize);
+
+/////////////////////////////////////////////////////
 // FIXED MUNICIPALITY COLORS
 /////////////////////////////////////////////////////
 
 function getColor(name){
 
-if(name==="الخبر"){
-return "#FFD700"; // yellow
-}
-
-if(name==="الدمام"){
-return "#FF6B6B"; // red
-}
-
-if(name==="الظهران"){
-return "#90EE90"; // green
-}
+if(name==="الخبر"){ return "#FFD700"; }
+if(name==="الدمام"){ return "#FF6B6B"; }
+if(name==="الظهران"){ return "#90EE90"; }
 
 return "#cccccc";
 
@@ -178,6 +188,8 @@ municipalityLayer.addData(data);
 
 map.fitBounds(municipalityLayer.getBounds());
 
+fixMapSize();
+
 });
 
 /////////////////////////////////////////////////////
@@ -227,6 +239,8 @@ marker.bindTooltip(buildTooltip(r));
 clusterGroup.addLayer(marker);
 
 });
+
+fixMapSize();
 
 }
 
@@ -284,6 +298,14 @@ return div;
 };
 
 legend.addTo(map);
+
+/////////////////////////////////////////////////////
+// FINAL FIX FOR GRAFANA
+/////////////////////////////////////////////////////
+
+setTimeout(()=>{
+map.invalidateSize();
+},1000);
 
 </script>
 
